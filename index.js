@@ -6,6 +6,7 @@ import session from "express-session";
 import passport from "passport";
 import { Strategy } from "passport-local";
 import env from "dotenv"
+import GoogleStrategy from "passport-google-oauth2"
 
 
 const app=express();
@@ -28,11 +29,11 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 const db=new pg.Client({
-    user:"postgres",
-    host:"localhost",
-    database:"Unihack",
-    password:"Claudiu100",
-    port:5432,
+    user:process.env.PG_USER,
+    host:process.env.PG_HOST,
+    database:process.env.PG_DATABASE,
+    password:process.env.PG_PASSWORD,
+    port:process.env.PG_PORT,
   });
   db.connect();
 
@@ -111,6 +112,14 @@ app.get("/contact",(req,res)=>{
     }
 });
 
+app.get("/auth/google",passport.authenticate("google",{
+    scope:["profile","email"],
+}));
+app.get("/auth/google/home",passport.authenticate("google",{
+    successRedirect:"/home",
+    failureRedirect:"/login",
+}));
+
 app.get("/info",(req,res)=>{
     res.render("info.ejs",{Year:year});
 });
@@ -119,8 +128,17 @@ app.get("/contact",(req,res)=>{
     res.render("contact.ejs",{Year:year});
 });
 
+app.get("/logout",(req,res)=>{
+    req.logout((err)=>{
+        if(err){
+            console.log(err);
+        }
+        res.redirect("/")
+    });
+});
 
-passport.use(new Strategy( async function verify(username,password,cb){
+
+passport.use("local",new Strategy( async function verify(username,password,cb){
     console.log(username)
     try{
         const checkEmail=await db.query("SELECT * FROM users WHERE email= $1",[username]);
@@ -146,6 +164,29 @@ passport.use(new Strategy( async function verify(username,password,cb){
         return cb(err);
     }
 }));
+
+passport.use("google",new GoogleStrategy({
+    clientID:process.env.GOOGLE_CLIENT_ID,
+    clientSecret:process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL:"http://localhost:3000/auth/google/home",
+    userProfileURL:"https://openidconnect.googleapis.com/v1/userinfo"
+    }, async (accessToken,refreshToken,profile,cb)=>{
+        console.log(profile);
+        try{
+          const result=await db.query("SELECT * FROM users WHERE email= $1",[profile.email]);
+          if(result.rows.length==0){
+            const newUser=await db.query("INSERT INTO users (email, password) VALUES ($1, $2)",[profile.email,"google"]);
+            return cb(null,newUser.rows[0])
+          }else{
+            //Aldready existing user
+            return cb(null,result.rows[0])
+          }
+        }catch(err){
+            return cb(err);
+        }
+    }
+))
+
 
 passport.serializeUser((user,cb)=>{
     cb(null,user);
