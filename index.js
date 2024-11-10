@@ -5,8 +5,9 @@ import bcrypt from "bcrypt"
 import session from "express-session";
 import passport from "passport";
 import { Strategy } from "passport-local";
-import env from "dotenv"
-import GoogleStrategy from "passport-google-oauth2"
+import env from "dotenv";
+import GoogleStrategy from "passport-google-oauth2";
+
 
 
 
@@ -40,7 +41,6 @@ const db=new pg.Client({
 
 let date=new Date();
 let year=date.getFullYear();
-
 
 
 app.get("/",(req,res)=>{
